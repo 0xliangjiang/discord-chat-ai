@@ -88,15 +88,36 @@ def get_context(auth, chanel_id):
         
 
 # 向GPT-4o mini模型发送请求并生成响应
-def generate_response(messages, api_key):
+def generate_response(messages, api_key, channel_name):
     gpt_api_url = "https://geekai.dev/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
+    # 根据频道名称选择语言
+    is_english = '🇺🇸' in channel_name or 'english' in channel_name.lower()
+    
     # 创建一个更自然的prompt
-    prompt = f"""你现在是一个Discord群聊中的普通用户，你需要用最自然的方式回复消息。请注意：
+    if is_english:
+        prompt = f"""You are a regular user in a Discord chat. Reply naturally to messages. Remember:
+
+1. Keep replies short and casual, not formal
+2. Don't use any punctuation
+3. Limit responses to 10 words or less
+4. Use casual internet language occasionally but naturally
+5. Don't be overly enthusiastic maintain a casual tone
+6. Not every message needs to be serious occasional jokes are fine
+7. Avoid robotic or formulaic responses
+8. Respond to context naturally don't force conversation
+9. Avoid any sensitive or inappropriate words
+10. Match the chat atmosphere blend in with others
+
+Remember you're just a regular user keep it simple and natural
+
+Current chat history: {messages}"""
+    else:
+        prompt = f"""你现在是一个Discord群聊中的普通用户，你需要用最自然的方式回复消息。请注意：
 
 1. 回复要像真实用户一样简短随意，不要太正式
 2. 不要使用任何标点符号
@@ -194,7 +215,7 @@ class DiscordBot(threading.Thread):
             
             if messages:
                 messages_text = " ".join(messages)
-                gpt_response = generate_response(messages_text, self.gpt_api_key)
+                gpt_response = generate_response(messages_text, self.gpt_api_key, channel_name)
                 print(gpt_response)
 
                 msg = {
@@ -220,15 +241,34 @@ class DiscordBot(threading.Thread):
 
 # 主程序入口
 if __name__ == "__main__":
-    channel_list = ["1275205888977801339"]  # Discord频道ID列表
+    print("\n=== Discord AI Chat Bot 配置 ===")
+    
+    # 让用户选择频道
+    print("\n可用的频道:")
+    channels = {
+        "1": ("1325903171176108163", "🇺🇸⎮english"),
+        "2": ("1275205888977801339", "🇨🇳⎮chinese"),
+    }
+    
+    for num, (id, name) in channels.items():
+        print(f"{num}. {name} (ID: {id})")
+    
+    while True:
+        channel_choice = input("\n请选择频道编号 (多个频道用逗号分隔，例如: 1,2): ").strip()
+        try:
+            selected_channels = [channels[num.strip()][0] for num in channel_choice.split(",") if num.strip() in channels]
+            if selected_channels:
+                break
+            print("无效的选择，请重试")
+        except:
+            print("无效的输入，请重试")
+    
+    # 固定延时范围
+    min_delay, max_delay = 300, 360  # 5-6分钟
+    DELAY_RANGES = [(min_delay, max_delay)]
     
     # GPT API配置
-    GPT_API_KEY = "sk-xxxxxx"
-    
-    # 设置延时时间范围（秒）
-    DELAY_RANGES = [
-        (300, 350),   # 延时范围：10-15秒
-    ]
+    GPT_API_KEY = "sk-xxxx"
     
     # 读取配置文件中的token和代理信息
     token_configs = read_config()
@@ -238,8 +278,21 @@ if __name__ == "__main__":
         exit(1)
     
     # 显示配置信息
-    logging.info(f"共加载 {len(token_configs)} 个账号配置")
+    print("\n=== 配置信息 ===")
+    selected_channel_names = [name for num, (_, name) in channels.items() if channels[num][0] in selected_channels]
+    print(f"选择的频道: {', '.join(selected_channel_names)}")
+    print(f"延时范围: {min_delay}-{max_delay}秒")
+    print(f"账号数量: {len(token_configs)}")
     proxy_count = sum(1 for _, proxy in token_configs if proxy)
+    print(f"代理使用: {proxy_count}个账号使用代理, {len(token_configs) - proxy_count}个账号不使用代理")
+    
+    confirm = input("\n确认启动? (y/n): ").strip().lower()
+    if confirm != 'y':
+        print("已取消启动")
+        exit(0)
+    
+    # 显示日志信息
+    logging.info(f"共加载 {len(token_configs)} 个账号配置")
     logging.info(f"其中 {proxy_count} 个账号使用代理, {len(token_configs) - proxy_count} 个账号不使用代理")
     
     # 随机打乱token顺序
@@ -250,7 +303,7 @@ if __name__ == "__main__":
     for i, (token, proxy) in enumerate(token_configs):
         # 随机选择一个延时范围
         min_delay, max_delay = random.choice(DELAY_RANGES)
-        bot = DiscordBot(token, proxy, channel_list, min_delay, max_delay, GPT_API_KEY)
+        bot = DiscordBot(token, proxy, selected_channels, min_delay, max_delay, GPT_API_KEY)
         bot.start()
         bots.append(bot)
         logging.info(f"启动机器人 Token: {token[:6]}... 延时范围: {min_delay}-{max_delay}秒")
@@ -261,6 +314,13 @@ if __name__ == "__main__":
             logging.info(f"等待 {startup_delay} 秒后启动下一个机器人...")
             time.sleep(startup_delay)
     
+    print("\n机器人已启动，按 Ctrl+C 停止")
+    
     # 等待所有线程结束
-    for bot in bots:
-        bot.join()
+    try:
+        for bot in bots:
+            bot.join()
+    except KeyboardInterrupt:
+        print("\n正在停止所有机器人...")
+        # 这里可以添加清理代码
+        exit(0)
