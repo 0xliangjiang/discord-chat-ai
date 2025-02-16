@@ -2,6 +2,8 @@
 
 一个基于 GPT 的智能 Discord 聊天机器人，支持多账号、代理和自然对话。
 
+AI API KEY 申请地址：[点我访问](https://geekai.co/chat?invite_code=aVcDNp)
+ 
 ## 特性
 
 - 🤖 基于 GPT-4o mini 模型的智能对话
